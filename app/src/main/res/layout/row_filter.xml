@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:layout_margin="@dimen/item_space">
+
+    <com.google.android.material.checkbox.MaterialCheckBox
+        android:id="@+id/cbFilter"
+        style="@style/FilterCheckBox"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minWidth="0dp"
+        android:minHeight="0dp"
+        android:text="@string/app_name"
+        android:textColor="@color/text_sub" />
+
+</LinearLayout>

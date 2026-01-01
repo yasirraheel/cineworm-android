@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "507527112814",
+    "project_id": "videostreamingapp-84f1d",
+    "storage_bucket": "videostreamingapp-84f1d.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:507527112814:android:03a3ee7b8811f580525e7f",
+        "android_client_info": {
+          "package_name": "com.cineworm.videostreamingapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "507527112814-75n777ero7g67a37detnnoi0c35oism2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.cineworm.videostreamingapp",
+            "certificate_hash": "92a770b8cacb96a8d06f014c8ab9d2b2c3332afe"
+          }
+        },
+        {
+          "client_id": "507527112814-i3s8sftjnj6oac9risgru6scltfog1tr.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.cineworm.videostreamingapp",
+            "certificate_hash": "4fef57a98197246ccec74fdf99bbc24bd22b79f0"
+          }
+        },
+        {
+          "client_id": "507527112814-fmlbojqd6rbbggtskh5fm4kh53j8nl76.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBEriuY7xjlal1fjfGO3FX6X_MYlrqjRCs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "507527112814-5fp4fn83jtr1phpaboc5b6i451t7mp8c.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

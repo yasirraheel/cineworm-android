@@ -1,0 +1,109 @@
+plugins {
+    id 'com.android.application'
+    id 'com.google.gms.google-services'
+    id 'kotlin-android'
+}
+
+android {
+    compileSdkVersion 34
+
+    defaultConfig {
+        applicationId "com.cineworm.videostreamingapp"
+        minSdkVersion 23
+        targetSdkVersion 34
+        versionCode 1
+        versionName "1.0"
+        multiDexEnabled true
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+    buildTypes.each {
+        it.buildConfigField 'String', 'SERVER_URL', serverUrl
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+    namespace 'com.cineworm.videostreamingapp'
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'androidx.cardview:cardview:1.0.0'
+    implementation 'io.github.inflationx:calligraphy3:3.1.1'
+    implementation 'io.github.inflationx:viewpump:2.0.3'
+    implementation 'com.makeramen:roundedimageview:2.3.0'
+    implementation "androidx.annotation:annotation:1.8.2"
+    implementation 'com.mobsandgeeks:android-saripaar:2.0.3'
+    implementation 'com.google.code.gson:gson:2.11.0'
+    implementation 'com.loopj.android:android-async-http:1.4.11'
+    implementation 'com.squareup.picasso:picasso:2.71828'
+    implementation 'org.greenrobot:eventbus:3.3.1'
+    implementation 'com.github.siyamed:android-shape-imageview:0.9.3@aar'
+    implementation 'me.relex:circleindicator:2.1.6@aar'
+    implementation 'com.razorpay:checkout:1.6.41'
+    implementation 'com.stripe:stripe-android:20.51.0'
+    implementation 'com.android.support:multidex:1.0.3'
+    implementation 'com.google.android.gms:play-services-ads:23.4.0'
+    implementation 'androidx.media3:media3-exoplayer:1.4.1'
+    implementation 'androidx.media3:media3-ui:1.4.1'
+    implementation 'androidx.media3:media3-exoplayer-dash:1.4.1'
+    implementation 'androidx.media3:media3-exoplayer-smoothstreaming:1.4.1'
+    implementation 'androidx.media3:media3-exoplayer-hls:1.4.1'
+    implementation 'androidx.media3:media3-exoplayer-ima:1.4.1'
+    implementation 'com.onesignal:OneSignal:5.1.23'
+    implementation 'com.google.android.gms:play-services-location:21.3.0'
+    implementation 'com.google.firebase:firebase-messaging:24.0.2'
+    implementation 'com.google.firebase:firebase-analytics:22.1.2'
+    implementation 'com.paystack.android:paystack-ui:0.0.10'
+    implementation 'com.google.android.gms:play-services-auth:21.2.0'
+    implementation 'com.facebook.android:audience-network-sdk:6.18.0'
+    implementation 'com.google.ads.mediation:facebook:6.18.0.0'
+    implementation 'com.google.android.gms:play-services-cast-framework:21.5.0'
+    implementation 'org.jsoup:jsoup:1.14.3'
+    implementation 'com.tuyenmonkey:text-decorator:1.0.0'
+    implementation 'com.braintreepayments.api:drop-in:6.16.0'
+    implementation 'com.karumi:dexter:6.2.3'
+    implementation 'in.payu:payu-checkout-pro:2.4.3'
+    implementation 'com.paytm.appinvokesdk:appinvokesdk:1.6.15'
+    implementation('com.instamojo:android-sdk:3.7.1@aar') {
+        transitive = true
+    }
+    implementation 'com.cashfree.pg:api:2.1.17'
+    implementation 'androidx.gridlayout:gridlayout:1.0.0'
+    implementation 'com.github.flutterwave.rave-android:rave_android:2.1.39'
+    implementation('com.wortise:android-sdk:1.6.0') {
+        exclude group: "com.google.android.exoplayer", module: "exoplayer"
+    }
+    implementation 'com.startapp:inapp-sdk:5.1.0'
+    implementation 'com.applovin:applovin-sdk:13.0.0'
+    implementation 'com.google.android.flexbox:flexbox:3.0.0'
+    implementation 'io.github.chochanaresh:filepicker:0.1.9'
+    implementation "android.arch.lifecycle:extensions:1.1.1"
+    implementation "android.arch.lifecycle:common-java8:1.1.1"
+    implementation files('libs/sslCommerzSdk.aar')
+    implementation 'com.cinetpay:androidsdk:1.0.0'
+    implementation 'com.pierfrancescosoffritti.androidyoutubeplayer:core:12.1.0'
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
+}
+
+configurations.all {
+    c -> c.resolutionStrategy.eachDependency {
+        DependencyResolveDetails dependency ->
+            println dependency.requested.group
+            if (dependency.requested.group == 'org.bouncycastle') {
+                dependency.useTarget 'org.bouncycastle:bcprov-jdk15to18:1.68'
+            }
+    }
+}
+

@@ -1,0 +1,6 @@
+package com.cineworm.util;
+
+public interface WatchListClickListener {
+    void onItemClick(boolean isAddWatchList, String message);
+}
+
