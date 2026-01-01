@@ -8,6 +8,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
@@ -27,17 +28,13 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
-import androidx.media3.common.MediaItem;
-import androidx.media3.common.Player;
-import androidx.media3.exoplayer.ExoPlayer;
-import androidx.media3.ui.PlayerView;
-
 import com.cineworm.adapter.HomeAdapter;
 import com.cineworm.adapter.HomeContentAdapter;
 import com.cineworm.adapter.HomeVerticalAdapter;
 import com.cineworm.item.ItemHome;
 import com.cineworm.item.ItemHomeContent;
 import com.cineworm.item.ItemHomeDisplay;
+import com.cineworm.item.ItemPlayer;
 import com.cineworm.util.API;
 import com.cineworm.util.Constant;
 import com.cineworm.util.NetworkUtils;
@@ -69,16 +66,15 @@ public class HomeFragment extends Fragment {
     private ProgressBar mProgressBar;
     private LinearLayout lyt_not_found;
     private NestedScrollView nestedScrollView;
-    private PlayerView playerView;
-    private ExoPlayer exoPlayer;
+    private FrameLayout playerSection;
     private TextView txtVideoTitle;
     private TextView txtVideoType;
+    private LinearLayout lytVideoInfo;
     private ArrayList<ItemHome> homeList;
     private ArrayList<ItemHome> horizontalSectionsList;
     private ArrayList<ItemHomeDisplay> allDisplayList;
     private ArrayList<ItemHomeDisplay> displayedList;
     private ArrayList<ItemHomeContent> allContentList;
-    private ArrayList<String> movieUrlsList;
     private RecyclerView rvHome;
     private RecyclerView rvHorizontalSections;
     private RelativeLayout lytSlider;
@@ -93,35 +89,34 @@ public class HomeFragment extends Fragment {
     private int currentPage = 0;
     private ItemHomeContent currentPlayingContent;
     private java.util.Random random = new java.util.Random();
+    private FragmentManager fragmentManager;
+    private String currentVideoUrl = "";
+    private String currentVideoType = "";
+    private String currentVideoImage = "";
+    private String currentVideoTitle = "";
 
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_home, container, false);
         myApplication = MyApplication.getInstance();
+        fragmentManager = getChildFragmentManager();
 
         homeList = new ArrayList<>();
-        movieUrlsList = new ArrayList<>();
         horizontalSectionsList = new ArrayList<>();
         allDisplayList = new ArrayList<>();
         displayedList = new ArrayList<>();
         allContentList = new ArrayList<>();
-        
+
         mProgressBar = rootView.findViewById(R.id.progressBar1);
         lyt_not_found = rootView.findViewById(R.id.lyt_not_found);
         nestedScrollView = rootView.findViewById(R.id.nestedScrollView);
-        playerView = rootView.findViewById(R.id.playerView);
+        playerSection = rootView.findViewById(R.id.playerSection);
         lytSlider = rootView.findViewById(R.id.lytSlider);
         txtVideoTitle = rootView.findViewById(R.id.txtVideoTitle);
         txtVideoType = rootView.findViewById(R.id.txtVideoType);
-        
-        // Initialize ExoPlayer
-        exoPlayer = new ExoPlayer.Builder(requireContext()).build();
-        playerView.setPlayer(exoPlayer);
-        playerView.setControllerAutoShow(true);
-        playerView.setUseController(true);
-        exoPlayer.setRepeatMode(Player.REPEAT_MODE_ONE);
-        exoPlayer.setVolume(1.0f); // Full volume for autoplay
+        lytVideoInfo = rootView.findViewById(R.id.lytVideoInfo);
+
         rvHorizontalSections = rootView.findViewById(R.id.rv_horizontal_sections);
         rvHome = rootView.findViewById(R.id.rv_home);
         lytLoadMore = rootView.findViewById(R.id.lytLoadMore);
@@ -131,7 +126,7 @@ public class HomeFragment extends Fragment {
 
         recyclerViewPropertyVertical(rvHome);
         recyclerViewPropertyHorizontal(rvHorizontalSections);
-        
+
         // Setup scroll to top button
         nestedScrollView.setOnScrollChangeListener(new NestedScrollView.OnScrollChangeListener() {
             @Override
@@ -143,7 +138,7 @@ public class HomeFragment extends Fragment {
                 }
             }
         });
-        
+
         fabScrollToTop.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -154,11 +149,19 @@ public class HomeFragment extends Fragment {
                 });
             }
         });
-        
+
         btnLoadMore.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 loadMoreItems();
+            }
+        });
+
+        // Setup click on video info to navigate to details
+        lytVideoInfo.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                navigateToVideoDetails();
             }
         });
 
@@ -167,7 +170,6 @@ public class HomeFragment extends Fragment {
         } else {
             Toast.makeText(getActivity(), getString(R.string.conne_msg1), Toast.LENGTH_SHORT).show();
         }
-
 
         return rootView;
     }
@@ -189,7 +191,7 @@ public class HomeFragment extends Fragment {
         recyclerView.setFocusable(false);
         recyclerView.setNestedScrollingEnabled(false);
     }
-    
+
     private void recyclerViewPropertyHorizontal(RecyclerView recyclerView) {
         recyclerView.setHasFixedSize(true);
         recyclerView.setLayoutManager(new LinearLayoutManager(getActivity(), LinearLayoutManager.VERTICAL, false));
@@ -225,15 +227,6 @@ public class HomeFragment extends Fragment {
                     Log.d("HomeFragment", "Main JSON parsed successfully");
                     JSONObject liveTVJson = mainJson.getJSONObject(Constant.ARRAY_NAME);
                     Log.d("HomeFragment", "Array Name: " + Constant.ARRAY_NAME);
-
-                    // Collect movie trailer URLs for auto-play
-                    if (liveTVJson.has("slider")) {
-                        JSONArray sliderArray = liveTVJson.getJSONArray("slider");
-                        for (int i = 0; i < sliderArray.length(); i++) {
-                            JSONObject jsonObject = sliderArray.getJSONObject(i);
-                            // We'll collect trailer URLs from movies instead
-                        }
-                    }
 
                     if (liveTVJson.has("recently_watched")) {
                         JSONArray recentArray = liveTVJson.getJSONArray("recently_watched");
@@ -339,7 +332,7 @@ public class HomeFragment extends Fragment {
                     }
                     displayData();
                     Log.d("HomeFragment", "Total home sections: " + homeList.size());
-                    loadRandomMovieTrailer();
+                    loadRandomVideo();
 
                 } catch (JSONException e) {
                     e.printStackTrace();
@@ -367,19 +360,19 @@ public class HomeFragment extends Fragment {
     }
 
     private void displayData() {
-        // Player will be initialized separately with loadRandomMovieTrailer()
+        // Player will be initialized separately with loadRandomVideo()
         lytSlider.setVisibility(View.VISIBLE);
 
         // Separate horizontal sections (Recent, Upcoming) from vertical content
         horizontalSectionsList.clear();
         allDisplayList.clear();
         allContentList.clear();
-        
+
         if (!homeList.isEmpty()) {
             for (ItemHome itemHome : homeList) {
                 String homeId = itemHome.getHomeId();
                 String homeType = itemHome.getHomeType();
-                
+
                 // Keep Recently Watched and Upcoming sections horizontal
                 if (homeId.equals("-1") && (homeType.equals("Recent") || homeType.equals("Movie") || homeType.equals("Shows"))) {
                     horizontalSectionsList.add(itemHome);
@@ -388,7 +381,7 @@ public class HomeFragment extends Fragment {
                     if (itemHome.getItemHomeContents() != null && !itemHome.getItemHomeContents().isEmpty()) {
                         // Add section header
                         allDisplayList.add(new ItemHomeDisplay(itemHome.getHomeTitle(), itemHome.getHomeId()));
-                        
+
                         // Add all content items from this section
                         for (ItemHomeContent content : itemHome.getItemHomeContents()) {
                             allDisplayList.add(new ItemHomeDisplay(content));
@@ -398,7 +391,7 @@ public class HomeFragment extends Fragment {
                 }
             }
         }
-        
+
         Log.d("HomeFragment", "Horizontal sections: " + horizontalSectionsList.size());
         Log.d("HomeFragment", "Vertical display items: " + allDisplayList.size());
         Log.d("HomeFragment", "Vertical content items: " + allContentList.size());
@@ -444,25 +437,25 @@ public class HomeFragment extends Fragment {
         }
 
     }
-    
+
     private void loadMoreItems() {
         btnLoadMore.setVisibility(View.GONE);
         progressBarLoadMore.setVisibility(View.VISIBLE);
-        
+
         // Save current scroll position
         final int scrollY = nestedScrollView.getScrollY();
-        
+
         nestedScrollView.postDelayed(new Runnable() {
             @Override
             public void run() {
                 int startIndex = currentPage * itemsPerPage;
                 int endIndex = Math.min(startIndex + itemsPerPage, allDisplayList.size());
-                
+
                 if (startIndex < allDisplayList.size()) {
                     for (int i = startIndex; i < endIndex; i++) {
                         displayedList.add(allDisplayList.get(i));
                     }
-                    
+
                     if (homeVerticalAdapter == null) {
                         homeVerticalAdapter = new HomeVerticalAdapter(getActivity(), displayedList);
                         rvHome.setAdapter(homeVerticalAdapter);
@@ -470,9 +463,9 @@ public class HomeFragment extends Fragment {
                     } else {
                         homeVerticalAdapter.notifyDataSetChanged();
                     }
-                    
+
                     currentPage++;
-                    
+
                     // Show/hide load more button based on remaining items
                     if (endIndex >= allDisplayList.size()) {
                         lytLoadMore.setVisibility(View.GONE);
@@ -487,7 +480,7 @@ public class HomeFragment extends Fragment {
             }
         }, 500);
     }
-    
+
     private void setupContentClickListener() {
         homeVerticalAdapter.setOnItemClickListener(new RvOnClickListener() {
             @Override
@@ -535,39 +528,40 @@ public class HomeFragment extends Fragment {
         ((MainActivity) requireActivity()).setToolbarTitle(Name);
     }
 
-    private void loadRandomMovieTrailer() {
-        // Get a random movie from vertical content sections only
+    private void loadRandomVideo() {
+        // Get a random video from vertical content sections only
         if (allContentList != null && !allContentList.isEmpty()) {
             int randomIndex = random.nextInt(allContentList.size());
             currentPlayingContent = allContentList.get(randomIndex);
-            
+
             String videoId = currentPlayingContent.getVideoId();
             String videoType = currentPlayingContent.getVideoType();
-            
+
             Log.d("HomeFragment", "Loading random video: " + videoId + " Type: " + videoType + " Index: " + randomIndex);
-            
-            // Fetch movie/show details to get trailer URL
+
+            // Fetch movie/show details to get video URL and type
             if (videoType.equalsIgnoreCase("Movie")) {
                 fetchMovieDetails(videoId);
             } else if (videoType.equalsIgnoreCase("Shows") || videoType.equalsIgnoreCase("Series")) {
                 fetchShowDetails(videoId);
-            } else if (videoType.equalsIgnoreCase("TVSeries")) {
+            } else if (videoType.equalsIgnoreCase("LiveTV") || videoType.equalsIgnoreCase("TVSeries")) {
                 fetchTVDetails(videoId);
+            } else if (videoType.equalsIgnoreCase("Sports")) {
+                fetchSportDetails(videoId);
             } else {
-                // Fallback to demo video if type is unknown
-                playVideoUrl("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4", 
-                           currentPlayingContent.getVideoTitle() != null ? currentPlayingContent.getVideoTitle() : "Featured Video");
+                // Fallback - just show the thumbnail
+                initRipplePlayer();
             }
         } else {
             lytSlider.setVisibility(View.GONE);
         }
     }
-    
+
     private void fetchMovieDetails(String movieId) {
         AsyncHttpClient client = new AsyncHttpClient();
         RequestParams params = new RequestParams();
         params.put("movie_id", movieId);
-        
+
         client.post(Constant.MOVIE_DETAILS_URL, params, new AsyncHttpResponseHandler() {
             @Override
             public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
@@ -575,38 +569,54 @@ public class HomeFragment extends Fragment {
                     String result = new String(responseBody);
                     JSONObject mainJson = new JSONObject(result);
                     JSONArray movieArray = mainJson.getJSONArray(Constant.ARRAY_NAME);
-                    
+
                     if (movieArray.length() > 0) {
                         JSONObject movieObj = movieArray.getJSONObject(0);
-                        String videoUrl = movieObj.optString(Constant.MOVIE_URL, "");
-                        String title = movieObj.optString(Constant.MOVIE_TITLE, "Movie");
-                        
-                        if (!videoUrl.isEmpty()) {
-                            playVideoUrl(videoUrl, title);
+                        currentVideoUrl = movieObj.optString(Constant.MOVIE_URL, "");
+                        currentVideoType = movieObj.optString(Constant.MOVIE_TYPE, Constant.VIDEO_TYPE_HLS);
+                        currentVideoImage = movieObj.optString(Constant.MOVIE_IMAGE, "");
+                        currentVideoTitle = movieObj.optString(Constant.MOVIE_TITLE, "Movie");
+
+                        // Auto-detect YouTube/Vimeo from URL if type is HLS
+                        if (currentVideoType.equals(Constant.VIDEO_TYPE_HLS) && !currentVideoUrl.isEmpty()) {
+                            if (PlayerUtil.isYoutubeUrl(currentVideoUrl)) {
+                                currentVideoType = Constant.VIDEO_TYPE_YOUTUBE;
+                            } else if (PlayerUtil.isVimeoUrl(currentVideoUrl)) {
+                                currentVideoType = Constant.VIDEO_TYPE_VIMEO;
+                            }
+                        }
+
+                        Log.d("HomeFragment", "Video URL: " + currentVideoUrl);
+                        Log.d("HomeFragment", "Video Type: " + currentVideoType);
+                        Log.d("HomeFragment", "Video Title: " + currentVideoTitle);
+
+                        if (!currentVideoUrl.isEmpty()) {
+                            updateVideoInfo();
+                            initRipplePlayer();
                         } else {
                             Log.d("HomeFragment", "No video URL found, trying next random video");
-                            loadRandomMovieTrailer(); // Try another random video
+                            loadRandomVideo(); // Try another random video
                         }
                     }
                 } catch (Exception e) {
                     Log.e("HomeFragment", "Error parsing movie details: " + e.getMessage());
-                    loadRandomMovieTrailer(); // Try another random video
+                    loadRandomVideo(); // Try another random video
                 }
             }
-            
+
             @Override
             public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {
                 Log.e("HomeFragment", "Failed to fetch movie details");
-                loadRandomMovieTrailer(); // Try another random video
+                loadRandomVideo(); // Try another random video
             }
         });
     }
-    
+
     private void fetchShowDetails(String showId) {
         AsyncHttpClient client = new AsyncHttpClient();
         RequestParams params = new RequestParams();
         params.put("show_id", showId);
-        
+
         client.post(Constant.SHOW_DETAILS_URL, params, new AsyncHttpResponseHandler() {
             @Override
             public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
@@ -614,36 +624,48 @@ public class HomeFragment extends Fragment {
                     String result = new String(responseBody);
                     JSONObject mainJson = new JSONObject(result);
                     JSONArray showArray = mainJson.getJSONArray(Constant.ARRAY_NAME);
-                    
+
                     if (showArray.length() > 0) {
                         JSONObject showObj = showArray.getJSONObject(0);
-                        String videoUrl = showObj.optString("video_url", "");
-                        String title = showObj.optString(Constant.SHOW_TITLE, "Show");
-                        
-                        if (!videoUrl.isEmpty()) {
-                            playVideoUrl(videoUrl, title);
+                        currentVideoUrl = showObj.optString("video_url", "");
+                        currentVideoType = showObj.optString("video_type", Constant.VIDEO_TYPE_HLS);
+                        currentVideoImage = showObj.optString(Constant.SHOW_IMAGE, "");
+                        currentVideoTitle = showObj.optString(Constant.SHOW_TITLE, "Show");
+
+                        // Auto-detect YouTube/Vimeo from URL
+                        if (currentVideoType.equals(Constant.VIDEO_TYPE_HLS) && !currentVideoUrl.isEmpty()) {
+                            if (PlayerUtil.isYoutubeUrl(currentVideoUrl)) {
+                                currentVideoType = Constant.VIDEO_TYPE_YOUTUBE;
+                            } else if (PlayerUtil.isVimeoUrl(currentVideoUrl)) {
+                                currentVideoType = Constant.VIDEO_TYPE_VIMEO;
+                            }
+                        }
+
+                        if (!currentVideoUrl.isEmpty()) {
+                            updateVideoInfo();
+                            initRipplePlayer();
                         } else {
-                            loadRandomMovieTrailer();
+                            loadRandomVideo();
                         }
                     }
                 } catch (Exception e) {
                     Log.e("HomeFragment", "Error parsing show details: " + e.getMessage());
-                    loadRandomMovieTrailer();
+                    loadRandomVideo();
                 }
             }
-            
+
             @Override
             public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {
-                loadRandomMovieTrailer();
+                loadRandomVideo();
             }
         });
     }
-    
+
     private void fetchTVDetails(String tvId) {
         AsyncHttpClient client = new AsyncHttpClient();
         RequestParams params = new RequestParams();
         params.put("post_id", tvId);
-        
+
         client.post(Constant.TV_DETAILS_URL, params, new AsyncHttpResponseHandler() {
             @Override
             public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
@@ -651,90 +673,155 @@ public class HomeFragment extends Fragment {
                     String result = new String(responseBody);
                     JSONObject mainJson = new JSONObject(result);
                     JSONArray tvArray = mainJson.getJSONArray(Constant.ARRAY_NAME);
-                    
+
                     if (tvArray.length() > 0) {
                         JSONObject tvObj = tvArray.getJSONObject(0);
-                        String videoUrl = tvObj.optString("video_url", "");
-                        String title = tvObj.optString("channel_title", "Live TV");
-                        
-                        if (!videoUrl.isEmpty()) {
-                            playVideoUrl(videoUrl, title);
+                        currentVideoUrl = tvObj.optString("video_url", "");
+                        currentVideoType = tvObj.optString("video_type", Constant.VIDEO_TYPE_HLS);
+                        currentVideoImage = tvObj.optString("channel_thumbnail", "");
+                        currentVideoTitle = tvObj.optString("channel_title", "Live TV");
+
+                        // Auto-detect YouTube/Vimeo from URL
+                        if (currentVideoType.equals(Constant.VIDEO_TYPE_HLS) && !currentVideoUrl.isEmpty()) {
+                            if (PlayerUtil.isYoutubeUrl(currentVideoUrl)) {
+                                currentVideoType = Constant.VIDEO_TYPE_YOUTUBE;
+                            } else if (PlayerUtil.isVimeoUrl(currentVideoUrl)) {
+                                currentVideoType = Constant.VIDEO_TYPE_VIMEO;
+                            }
+                        }
+
+                        if (!currentVideoUrl.isEmpty()) {
+                            updateVideoInfo();
+                            initRipplePlayer();
                         } else {
-                            loadRandomMovieTrailer();
+                            loadRandomVideo();
                         }
                     }
                 } catch (Exception e) {
                     Log.e("HomeFragment", "Error parsing TV details: " + e.getMessage());
-                    loadRandomMovieTrailer();
+                    loadRandomVideo();
                 }
             }
-            
+
             @Override
             public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {
-                loadRandomMovieTrailer();
+                loadRandomVideo();
             }
         });
     }
-    
-    private void playVideoUrl(String videoUrl, String title) {
-        if (exoPlayer == null || videoUrl == null || videoUrl.isEmpty()) {
-            return;
-        }
 
-        Log.d("HomeFragment", "Playing video URL: " + videoUrl);
+    private void fetchSportDetails(String sportId) {
+        AsyncHttpClient client = new AsyncHttpClient();
+        RequestParams params = new RequestParams();
+        params.put("post_id", sportId);
 
-        // Handle YouTube URLs - ExoPlayer can't play YouTube directly
-        if (PlayerUtil.isYoutubeUrl(videoUrl)) {
-            Log.d("HomeFragment", "YouTube URL detected, skipping to next random video");
-            loadRandomMovieTrailer(); // YouTube needs special handling, try another video
-            return;
-        }
+        client.post(Constant.SPORT_DETAILS_URL, params, new AsyncHttpResponseHandler() {
+            @Override
+            public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
+                try {
+                    String result = new String(responseBody);
+                    JSONObject mainJson = new JSONObject(result);
+                    JSONArray sportArray = mainJson.getJSONArray(Constant.ARRAY_NAME);
 
-        // Handle Vimeo URLs - ExoPlayer can't play Vimeo directly either
-        if (PlayerUtil.isVimeoUrl(videoUrl)) {
-            Log.d("HomeFragment", "Vimeo URL detected, skipping to next random video");
-            loadRandomMovieTrailer(); // Vimeo needs special handling, try another video
-            return;
-        }
+                    if (sportArray.length() > 0) {
+                        JSONObject sportObj = sportArray.getJSONObject(0);
+                        currentVideoUrl = sportObj.optString("video_url", "");
+                        currentVideoType = sportObj.optString("video_type", Constant.VIDEO_TYPE_HLS);
+                        currentVideoImage = sportObj.optString("video_image", "");
+                        currentVideoTitle = sportObj.optString("video_title", "Sports");
 
-        // Play direct video URLs (MP4, M3U8, etc.)
-        try {
-            // Update UI with video title and type
-            if (txtVideoTitle != null) {
-                txtVideoTitle.setText(title);
-            }
-            if (txtVideoType != null && currentPlayingContent != null) {
-                String videoType = currentPlayingContent.getVideoType();
-                txtVideoType.setText(videoType);
-                // You can also add a click listener to navigate to details
-                txtVideoTitle.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        navigateToVideoDetails();
+                        // Auto-detect YouTube/Vimeo from URL
+                        if (currentVideoType.equals(Constant.VIDEO_TYPE_HLS) && !currentVideoUrl.isEmpty()) {
+                            if (PlayerUtil.isYoutubeUrl(currentVideoUrl)) {
+                                currentVideoType = Constant.VIDEO_TYPE_YOUTUBE;
+                            } else if (PlayerUtil.isVimeoUrl(currentVideoUrl)) {
+                                currentVideoType = Constant.VIDEO_TYPE_VIMEO;
+                            }
+                        }
+
+                        if (!currentVideoUrl.isEmpty()) {
+                            updateVideoInfo();
+                            initRipplePlayer();
+                        } else {
+                            loadRandomVideo();
+                        }
                     }
-                });
+                } catch (Exception e) {
+                    Log.e("HomeFragment", "Error parsing sport details: " + e.getMessage());
+                    loadRandomVideo();
+                }
             }
 
-            MediaItem mediaItem = new MediaItem.Builder()
-                    .setUri(videoUrl)
-                    .setMediaMetadata(
-                            new androidx.media3.common.MediaMetadata.Builder()
-                                    .setTitle(title)
-                                    .setArtist(currentPlayingContent != null ? currentPlayingContent.getVideoType() : "Video")
-                                    .setDescription("Tap to view full details")
-                                    .build()
-                    )
-                    .build();
+            @Override
+            public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {
+                loadRandomVideo();
+            }
+        });
+    }
 
-            exoPlayer.setMediaItem(mediaItem);
-            exoPlayer.prepare();
-            exoPlayer.setPlayWhenReady(true);
-            lytSlider.setVisibility(View.VISIBLE);
+    private void updateVideoInfo() {
+        if (txtVideoTitle != null) {
+            txtVideoTitle.setText(currentVideoTitle);
+        }
+        if (txtVideoType != null && currentPlayingContent != null) {
+            String displayType = currentPlayingContent.getVideoType();
+            txtVideoType.setText(displayType);
+        }
+    }
 
-            Log.d("HomeFragment", "Video prepared and playing");
-        } catch (Exception e) {
-            Log.e("HomeFragment", "Error playing video: " + e.getMessage());
-            loadRandomMovieTrailer(); // Try another video
+    private void initRipplePlayer() {
+        PlayRippleFragment playRippleFragment = PlayRippleFragment.newInstance(
+            currentVideoImage.isEmpty() ? currentPlayingContent.getVideoImage() : currentVideoImage
+        );
+        playRippleFragment.setOnSkipClickListener(new RvOnClickListener() {
+            @Override
+            public void onItemClick(int position) {
+                setPlayer();
+            }
+        });
+        fragmentManager.beginTransaction().replace(R.id.playerSection, playRippleFragment).commitAllowingStateLoss();
+        lytSlider.setVisibility(View.VISIBLE);
+    }
+
+    private void setPlayer() {
+        if (currentVideoUrl.isEmpty()) {
+            Toast.makeText(getActivity(), "Video not available", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        Log.d("HomeFragment", "Setting player - Type: " + currentVideoType + ", URL: " + currentVideoUrl);
+
+        switch (currentVideoType) {
+            case Constant.VIDEO_TYPE_LOCAL:
+            case Constant.VIDEO_TYPE_URL:
+            case Constant.VIDEO_TYPE_HLS:
+                // Use ExoPlayer for direct video URLs
+                ItemPlayer playerData = new ItemPlayer();
+                playerData.setDefaultUrl(currentVideoUrl);
+                ArrayList<String> urlList = new ArrayList<>();
+                urlList.add(currentVideoUrl);
+                playerData.setUrlList(urlList);
+                playerData.setSubTitleList(new ArrayList<>());
+
+                ExoPlayerFragment exoPlayerFragment = ExoPlayerFragment.newInstance(playerData);
+                fragmentManager.beginTransaction().replace(R.id.playerSection, exoPlayerFragment).commitAllowingStateLoss();
+                break;
+
+            case Constant.VIDEO_TYPE_EMBED:
+            case Constant.VIDEO_TYPE_YOUTUBE:
+            case Constant.VIDEO_TYPE_VIMEO:
+                // Use EmbeddedImageFragment which will launch the appropriate activity
+                EmbeddedImageFragment embeddedImageFragment = EmbeddedImageFragment.newInstance(
+                    currentVideoUrl,
+                    currentVideoImage.isEmpty() ? currentPlayingContent.getVideoImage() : currentVideoImage,
+                    true
+                );
+                fragmentManager.beginTransaction().replace(R.id.playerSection, embeddedImageFragment).commitAllowingStateLoss();
+                break;
+
+            default:
+                Toast.makeText(getActivity(), "Unsupported video type", Toast.LENGTH_SHORT).show();
+                break;
         }
     }
 
@@ -767,27 +854,17 @@ public class HomeFragment extends Fragment {
     }
 
     @Override
-    public void onDestroy() {
-        super.onDestroy();
-        if (exoPlayer != null) {
-            exoPlayer.release();
-            exoPlayer = null;
-        }
-    }
-
-    @Override
     public void onPause() {
         super.onPause();
-        if (exoPlayer != null) {
-            exoPlayer.pause();
-        }
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        if (exoPlayer != null && exoPlayer.getPlaybackState() != Player.STATE_IDLE) {
-            exoPlayer.setPlayWhenReady(true);
-        }
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
     }
 }
