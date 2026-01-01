@@ -35,6 +35,7 @@ import com.cineworm.item.ItemHome;
 import com.cineworm.item.ItemHomeContent;
 import com.cineworm.item.ItemHomeDisplay;
 import com.cineworm.item.ItemPlayer;
+import com.cineworm.item.ItemSubTitle;
 import com.cineworm.util.API;
 import com.cineworm.util.Constant;
 import com.cineworm.util.NetworkUtils;
@@ -798,10 +799,14 @@ public class HomeFragment extends Fragment {
                 // Use ExoPlayer for direct video URLs
                 ItemPlayer playerData = new ItemPlayer();
                 playerData.setDefaultUrl(currentVideoUrl);
-                ArrayList<String> urlList = new ArrayList<>();
-                urlList.add(currentVideoUrl);
-                playerData.setUrlList(urlList);
-                playerData.setSubTitleList(new ArrayList<>());
+                playerData.setQuality(false);
+                playerData.setSubTitle(false);
+
+                // Create empty subtitle list
+                ArrayList<ItemSubTitle> itemSubTitles = new ArrayList<>();
+                ItemSubTitle subTitleOff = new ItemSubTitle("0", getString(R.string.off_sub_title), "");
+                itemSubTitles.add(subTitleOff);
+                playerData.setSubTitles(itemSubTitles);
 
                 ExoPlayerFragment exoPlayerFragment = ExoPlayerFragment.newInstance(playerData);
                 fragmentManager.beginTransaction().replace(R.id.playerSection, exoPlayerFragment).commitAllowingStateLoss();
