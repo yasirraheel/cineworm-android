@@ -629,7 +629,7 @@ public class HomeFragment extends Fragment {
                         JSONObject showObj = showArray.getJSONObject(0);
                         currentVideoUrl = showObj.optString("video_url", "");
                         currentVideoType = showObj.optString("video_type", Constant.VIDEO_TYPE_HLS);
-                        currentVideoImage = showObj.optString(Constant.SHOW_IMAGE, "");
+                        currentVideoImage = showObj.optString(Constant.SHOW_POSTER, "");
                         currentVideoTitle = showObj.optString(Constant.SHOW_TITLE, "Show");
 
                         // Auto-detect YouTube/Vimeo from URL
