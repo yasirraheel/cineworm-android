@@ -1,9 +1,8 @@
 package com.cineworm.fragment;
 
+import android.animation.ObjectAnimator;
 import android.content.Intent;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -24,21 +23,22 @@ import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import androidx.viewpager.widget.ViewPager;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.Player;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.ui.PlayerView;
 
 import com.cineworm.adapter.HomeAdapter;
 import com.cineworm.adapter.HomeContentAdapter;
 import com.cineworm.adapter.HomeVerticalAdapter;
-import com.cineworm.adapter.SliderAdapter;
 import com.cineworm.item.ItemHome;
 import com.cineworm.item.ItemHomeContent;
 import com.cineworm.item.ItemHomeDisplay;
-import com.cineworm.item.ItemSlider;
 import com.cineworm.util.API;
 import com.cineworm.util.Constant;
-import com.cineworm.util.EnchantedViewPager;
 import com.cineworm.util.NetworkUtils;
 import com.cineworm.util.RvOnClickListener;
 import com.cineworm.videostreamingapp.MainActivity;
@@ -67,16 +67,16 @@ public class HomeFragment extends Fragment {
     private ProgressBar mProgressBar;
     private LinearLayout lyt_not_found;
     private NestedScrollView nestedScrollView;
-    private EnchantedViewPager viewPager;
+    private PlayerView playerView;
+    private ExoPlayer exoPlayer;
     private ArrayList<ItemHome> homeList;
     private ArrayList<ItemHome> horizontalSectionsList;
     private ArrayList<ItemHomeDisplay> allDisplayList;
     private ArrayList<ItemHomeDisplay> displayedList;
     private ArrayList<ItemHomeContent> allContentList;
-    private ArrayList<ItemSlider> sliderList;
+    private ArrayList<String> movieUrlsList;
     private RecyclerView rvHome;
     private RecyclerView rvHorizontalSections;
-    private SliderAdapter sliderAdapter;
     private RelativeLayout lytSlider;
     private MyApplication myApplication;
     private HomeVerticalAdapter homeVerticalAdapter;
@@ -88,10 +88,6 @@ public class HomeFragment extends Fragment {
     private int itemsPerPage = 20;
     private int currentPage = 0;
 
-    int currentCount = 0;
-    Handler handler = new Handler(Looper.getMainLooper());
-    Runnable runnable;
-
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -99,7 +95,7 @@ public class HomeFragment extends Fragment {
         myApplication = MyApplication.getInstance();
 
         homeList = new ArrayList<>();
-        sliderList = new ArrayList<>();
+        movieUrlsList = new ArrayList<>();
         horizontalSectionsList = new ArrayList<>();
         allDisplayList = new ArrayList<>();
         displayedList = new ArrayList<>();
@@ -108,10 +104,14 @@ public class HomeFragment extends Fragment {
         mProgressBar = rootView.findViewById(R.id.progressBar1);
         lyt_not_found = rootView.findViewById(R.id.lyt_not_found);
         nestedScrollView = rootView.findViewById(R.id.nestedScrollView);
-        viewPager = rootView.findViewById(R.id.viewPager);
-        viewPager.useScale();
-        viewPager.removeAlpha();
+        playerView = rootView.findViewById(R.id.playerView);
         lytSlider = rootView.findViewById(R.id.lytSlider);
+        
+        // Initialize ExoPlayer
+        exoPlayer = new ExoPlayer.Builder(requireContext()).build();
+        playerView.setPlayer(exoPlayer);
+        exoPlayer.setRepeatMode(Player.REPEAT_MODE_ONE);
+        exoPlayer.setVolume(1f); // Unmuted autoplay
         rvHorizontalSections = rootView.findViewById(R.id.rv_horizontal_sections);
         rvHome = rootView.findViewById(R.id.rv_home);
         lytLoadMore = rootView.findViewById(R.id.lytLoadMore);
@@ -137,7 +137,11 @@ public class HomeFragment extends Fragment {
         fabScrollToTop.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                nestedScrollView.smoothScrollTo(0, 0);
+                nestedScrollView.post(() -> {
+                    ObjectAnimator animator = ObjectAnimator.ofInt(nestedScrollView, "scrollY", 0);
+                    animator.setDuration(800);
+                    animator.start();
+                });
             }
         });
         
@@ -212,17 +216,13 @@ public class HomeFragment extends Fragment {
                     JSONObject liveTVJson = mainJson.getJSONObject(Constant.ARRAY_NAME);
                     Log.d("HomeFragment", "Array Name: " + Constant.ARRAY_NAME);
 
-
-                    JSONArray sliderArray = liveTVJson.getJSONArray("slider");
-                    for (int i = 0; i < sliderArray.length(); i++) {
-                        JSONObject jsonObject = sliderArray.getJSONObject(i);
-                        ItemSlider itemSlider = new ItemSlider();
-                        itemSlider.setId(jsonObject.getString("slider_post_id"));
-                        itemSlider.setSliderTitle(jsonObject.getString("slider_title"));
-                        itemSlider.setSliderImage(jsonObject.getString("slider_image"));
-                        itemSlider.setSliderType(jsonObject.getString("slider_type"));
-                        itemSlider.setPremium(jsonObject.getString("video_access").equals("Paid"));
-                        sliderList.add(itemSlider);
+                    // Collect movie trailer URLs for auto-play
+                    if (liveTVJson.has("slider")) {
+                        JSONArray sliderArray = liveTVJson.getJSONArray("slider");
+                        for (int i = 0; i < sliderArray.length(); i++) {
+                            JSONObject jsonObject = sliderArray.getJSONObject(i);
+                            // We'll collect trailer URLs from movies instead
+                        }
                     }
 
                     if (liveTVJson.has("recently_watched")) {
@@ -329,7 +329,7 @@ public class HomeFragment extends Fragment {
                     }
                     displayData();
                     Log.d("HomeFragment", "Total home sections: " + homeList.size());
-                    Log.d("HomeFragment", "Total slider items: " + sliderList.size());
+                    loadRandomMovieTrailer();
 
                 } catch (JSONException e) {
                     e.printStackTrace();
@@ -357,17 +357,8 @@ public class HomeFragment extends Fragment {
     }
 
     private void displayData() {
-
-        if (!sliderList.isEmpty()) {
-            sliderAdapter = new SliderAdapter(requireActivity(), sliderList);
-            viewPager.setAdapter(sliderAdapter);
-            boolean isAutoSlide = getResources().getBoolean(R.bool.isAutoSlide);
-            if (isAutoSlide) {
-                autoPlay(viewPager);
-            }
-        } else {
-            lytSlider.setVisibility(View.GONE);
-        }
+        // Player will be initialized separately with loadRandomMovieTrailer()
+        lytSlider.setVisibility(View.VISIBLE);
 
         // Separate horizontal sections (Recent, Upcoming) from vertical content
         horizontalSectionsList.clear();
@@ -435,9 +426,10 @@ public class HomeFragment extends Fragment {
         }
 
         // Show "No Item Found" only if all lists are empty
-        if (sliderList.isEmpty() && horizontalSectionsList.isEmpty() && allDisplayList.isEmpty()) {
+        if (horizontalSectionsList.isEmpty() && allDisplayList.isEmpty()) {
             nestedScrollView.setVisibility(View.GONE);
             lyt_not_found.setVisibility(View.VISIBLE);
+            lytSlider.setVisibility(View.GONE);
             Log.d("HomeFragment", "No data available - showing no item found");
         }
 
@@ -450,7 +442,7 @@ public class HomeFragment extends Fragment {
         // Save current scroll position
         final int scrollY = nestedScrollView.getScrollY();
         
-        handler.postDelayed(new Runnable() {
+        nestedScrollView.postDelayed(new Runnable() {
             @Override
             public void run() {
                 int startIndex = currentPage * itemsPerPage;
@@ -533,26 +525,67 @@ public class HomeFragment extends Fragment {
         ((MainActivity) requireActivity()).setToolbarTitle(Name);
     }
 
-    private void autoPlay(final ViewPager viewPager) {
-        runnable = () -> {
-            try {
-                if (sliderList != null && sliderList.size() > 0) {
-                    int position = currentCount % sliderList.size();
-                    currentCount++;
-                    viewPager.setCurrentItem(position);
-                    handler.postDelayed(runnable, 3000);
-                }
-
-            } catch (Exception e) {
-                Log.e("TAG", "auto scroll pager error.", e);
+    private void loadRandomMovieTrailer() {
+        // Get a random movie from all content
+        if (allContentList != null && !allContentList.isEmpty()) {
+            int randomIndex = (int) (Math.random() * allContentList.size());
+            ItemHomeContent randomContent = allContentList.get(randomIndex);
+            
+            // Fetch movie details to get trailer URL
+            String videoId = randomContent.getVideoId();
+            String videoType = randomContent.getVideoType();
+            String videoTitle = randomContent.getVideoTitle() != null ? randomContent.getVideoTitle() : "Featured Content";
+            
+            Log.d("HomeFragment", "Loading random video: " + videoId + " Type: " + videoType);
+            
+            // For now, we'll use a demo video URL - you can fetch actual trailer from API
+            // In a real scenario, you'd call the movie details API to get the trailer URL
+            String demoVideoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+            
+            if (exoPlayer != null) {
+                // Create MediaItem with metadata to show title and details
+                MediaItem mediaItem = new MediaItem.Builder()
+                        .setUri(demoVideoUrl)
+                        .setMediaMetadata(
+                                new androidx.media3.common.MediaMetadata.Builder()
+                                        .setTitle(videoTitle)
+                                        .setArtist(videoType)
+                                        .setDescription("Tap to view details")
+                                        .build()
+                        )
+                        .build();
+                
+                exoPlayer.setMediaItem(mediaItem);
+                exoPlayer.prepare();
+                exoPlayer.setPlayWhenReady(true);
             }
-        };
-        handler.postDelayed(runnable, 3000);
+        } else {
+            lytSlider.setVisibility(View.GONE);
+        }
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-        handler.removeCallbacks(runnable);
+        if (exoPlayer != null) {
+            exoPlayer.release();
+            exoPlayer = null;
+        }
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        if (exoPlayer != null) {
+            exoPlayer.pause();
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (exoPlayer != null && exoPlayer.getPlaybackState() != Player.STATE_IDLE) {
+            exoPlayer.setPlayWhenReady(true);
+        }
     }
 }
