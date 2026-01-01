@@ -11,6 +11,7 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.material.button.MaterialButton;
@@ -40,6 +41,7 @@ import com.cineworm.item.ItemHomeDisplay;
 import com.cineworm.util.API;
 import com.cineworm.util.Constant;
 import com.cineworm.util.NetworkUtils;
+import com.cineworm.util.PlayerUtil;
 import com.cineworm.util.RvOnClickListener;
 import com.cineworm.videostreamingapp.MainActivity;
 import com.cineworm.videostreamingapp.MovieDetailsActivity;
@@ -69,6 +71,8 @@ public class HomeFragment extends Fragment {
     private NestedScrollView nestedScrollView;
     private PlayerView playerView;
     private ExoPlayer exoPlayer;
+    private TextView txtVideoTitle;
+    private TextView txtVideoType;
     private ArrayList<ItemHome> homeList;
     private ArrayList<ItemHome> horizontalSectionsList;
     private ArrayList<ItemHomeDisplay> allDisplayList;
@@ -87,6 +91,8 @@ public class HomeFragment extends Fragment {
     private FloatingActionButton fabScrollToTop;
     private int itemsPerPage = 20;
     private int currentPage = 0;
+    private ItemHomeContent currentPlayingContent;
+    private java.util.Random random = new java.util.Random();
 
     @Nullable
     @Override
@@ -106,12 +112,16 @@ public class HomeFragment extends Fragment {
         nestedScrollView = rootView.findViewById(R.id.nestedScrollView);
         playerView = rootView.findViewById(R.id.playerView);
         lytSlider = rootView.findViewById(R.id.lytSlider);
+        txtVideoTitle = rootView.findViewById(R.id.txtVideoTitle);
+        txtVideoType = rootView.findViewById(R.id.txtVideoType);
         
         // Initialize ExoPlayer
         exoPlayer = new ExoPlayer.Builder(requireContext()).build();
         playerView.setPlayer(exoPlayer);
+        playerView.setControllerAutoShow(true);
+        playerView.setUseController(true);
         exoPlayer.setRepeatMode(Player.REPEAT_MODE_ONE);
-        exoPlayer.setVolume(1f); // Unmuted autoplay
+        exoPlayer.setVolume(1.0f); // Full volume for autoplay
         rvHorizontalSections = rootView.findViewById(R.id.rv_horizontal_sections);
         rvHome = rootView.findViewById(R.id.rv_home);
         lytLoadMore = rootView.findViewById(R.id.lytLoadMore);
@@ -526,42 +536,234 @@ public class HomeFragment extends Fragment {
     }
 
     private void loadRandomMovieTrailer() {
-        // Get a random movie from all content
+        // Get a random movie from vertical content sections only
         if (allContentList != null && !allContentList.isEmpty()) {
-            int randomIndex = (int) (Math.random() * allContentList.size());
-            ItemHomeContent randomContent = allContentList.get(randomIndex);
+            int randomIndex = random.nextInt(allContentList.size());
+            currentPlayingContent = allContentList.get(randomIndex);
             
-            // Fetch movie details to get trailer URL
-            String videoId = randomContent.getVideoId();
-            String videoType = randomContent.getVideoType();
-            String videoTitle = randomContent.getVideoTitle() != null ? randomContent.getVideoTitle() : "Featured Content";
+            String videoId = currentPlayingContent.getVideoId();
+            String videoType = currentPlayingContent.getVideoType();
             
-            Log.d("HomeFragment", "Loading random video: " + videoId + " Type: " + videoType);
+            Log.d("HomeFragment", "Loading random video: " + videoId + " Type: " + videoType + " Index: " + randomIndex);
             
-            // For now, we'll use a demo video URL - you can fetch actual trailer from API
-            // In a real scenario, you'd call the movie details API to get the trailer URL
-            String demoVideoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
-            
-            if (exoPlayer != null) {
-                // Create MediaItem with metadata to show title and details
-                MediaItem mediaItem = new MediaItem.Builder()
-                        .setUri(demoVideoUrl)
-                        .setMediaMetadata(
-                                new androidx.media3.common.MediaMetadata.Builder()
-                                        .setTitle(videoTitle)
-                                        .setArtist(videoType)
-                                        .setDescription("Tap to view details")
-                                        .build()
-                        )
-                        .build();
-                
-                exoPlayer.setMediaItem(mediaItem);
-                exoPlayer.prepare();
-                exoPlayer.setPlayWhenReady(true);
+            // Fetch movie/show details to get trailer URL
+            if (videoType.equalsIgnoreCase("Movie")) {
+                fetchMovieDetails(videoId);
+            } else if (videoType.equalsIgnoreCase("Shows") || videoType.equalsIgnoreCase("Series")) {
+                fetchShowDetails(videoId);
+            } else if (videoType.equalsIgnoreCase("TVSeries")) {
+                fetchTVDetails(videoId);
+            } else {
+                // Fallback to demo video if type is unknown
+                playVideoUrl("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4", 
+                           currentPlayingContent.getVideoTitle() != null ? currentPlayingContent.getVideoTitle() : "Featured Video");
             }
         } else {
             lytSlider.setVisibility(View.GONE);
         }
+    }
+    
+    private void fetchMovieDetails(String movieId) {
+        AsyncHttpClient client = new AsyncHttpClient();
+        RequestParams params = new RequestParams();
+        params.put("movie_id", movieId);
+        
+        client.post(Constant.MOVIE_DETAILS_URL, params, new AsyncHttpResponseHandler() {
+            @Override
+            public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
+                try {
+                    String result = new String(responseBody);
+                    JSONObject mainJson = new JSONObject(result);
+                    JSONArray movieArray = mainJson.getJSONArray(Constant.ARRAY_NAME);
+                    
+                    if (movieArray.length() > 0) {
+                        JSONObject movieObj = movieArray.getJSONObject(0);
+                        String videoUrl = movieObj.optString(Constant.MOVIE_URL, "");
+                        String title = movieObj.optString(Constant.MOVIE_TITLE, "Movie");
+                        
+                        if (!videoUrl.isEmpty()) {
+                            playVideoUrl(videoUrl, title);
+                        } else {
+                            Log.d("HomeFragment", "No video URL found, trying next random video");
+                            loadRandomMovieTrailer(); // Try another random video
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.e("HomeFragment", "Error parsing movie details: " + e.getMessage());
+                    loadRandomMovieTrailer(); // Try another random video
+                }
+            }
+            
+            @Override
+            public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {
+                Log.e("HomeFragment", "Failed to fetch movie details");
+                loadRandomMovieTrailer(); // Try another random video
+            }
+        });
+    }
+    
+    private void fetchShowDetails(String showId) {
+        AsyncHttpClient client = new AsyncHttpClient();
+        RequestParams params = new RequestParams();
+        params.put("show_id", showId);
+        
+        client.post(Constant.SHOW_DETAILS_URL, params, new AsyncHttpResponseHandler() {
+            @Override
+            public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
+                try {
+                    String result = new String(responseBody);
+                    JSONObject mainJson = new JSONObject(result);
+                    JSONArray showArray = mainJson.getJSONArray(Constant.ARRAY_NAME);
+                    
+                    if (showArray.length() > 0) {
+                        JSONObject showObj = showArray.getJSONObject(0);
+                        String videoUrl = showObj.optString("video_url", "");
+                        String title = showObj.optString(Constant.SHOW_TITLE, "Show");
+                        
+                        if (!videoUrl.isEmpty()) {
+                            playVideoUrl(videoUrl, title);
+                        } else {
+                            loadRandomMovieTrailer();
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.e("HomeFragment", "Error parsing show details: " + e.getMessage());
+                    loadRandomMovieTrailer();
+                }
+            }
+            
+            @Override
+            public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {
+                loadRandomMovieTrailer();
+            }
+        });
+    }
+    
+    private void fetchTVDetails(String tvId) {
+        AsyncHttpClient client = new AsyncHttpClient();
+        RequestParams params = new RequestParams();
+        params.put("post_id", tvId);
+        
+        client.post(Constant.TV_DETAILS_URL, params, new AsyncHttpResponseHandler() {
+            @Override
+            public void onSuccess(int statusCode, Header[] headers, byte[] responseBody) {
+                try {
+                    String result = new String(responseBody);
+                    JSONObject mainJson = new JSONObject(result);
+                    JSONArray tvArray = mainJson.getJSONArray(Constant.ARRAY_NAME);
+                    
+                    if (tvArray.length() > 0) {
+                        JSONObject tvObj = tvArray.getJSONObject(0);
+                        String videoUrl = tvObj.optString("video_url", "");
+                        String title = tvObj.optString("channel_title", "Live TV");
+                        
+                        if (!videoUrl.isEmpty()) {
+                            playVideoUrl(videoUrl, title);
+                        } else {
+                            loadRandomMovieTrailer();
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.e("HomeFragment", "Error parsing TV details: " + e.getMessage());
+                    loadRandomMovieTrailer();
+                }
+            }
+            
+            @Override
+            public void onFailure(int statusCode, Header[] headers, byte[] responseBody, Throwable error) {
+                loadRandomMovieTrailer();
+            }
+        });
+    }
+    
+    private void playVideoUrl(String videoUrl, String title) {
+        if (exoPlayer == null || videoUrl == null || videoUrl.isEmpty()) {
+            return;
+        }
+
+        Log.d("HomeFragment", "Playing video URL: " + videoUrl);
+
+        // Handle YouTube URLs - ExoPlayer can't play YouTube directly
+        if (PlayerUtil.isYoutubeUrl(videoUrl)) {
+            Log.d("HomeFragment", "YouTube URL detected, skipping to next random video");
+            loadRandomMovieTrailer(); // YouTube needs special handling, try another video
+            return;
+        }
+
+        // Handle Vimeo URLs - ExoPlayer can't play Vimeo directly either
+        if (PlayerUtil.isVimeoUrl(videoUrl)) {
+            Log.d("HomeFragment", "Vimeo URL detected, skipping to next random video");
+            loadRandomMovieTrailer(); // Vimeo needs special handling, try another video
+            return;
+        }
+
+        // Play direct video URLs (MP4, M3U8, etc.)
+        try {
+            // Update UI with video title and type
+            if (txtVideoTitle != null) {
+                txtVideoTitle.setText(title);
+            }
+            if (txtVideoType != null && currentPlayingContent != null) {
+                String videoType = currentPlayingContent.getVideoType();
+                txtVideoType.setText(videoType);
+                // You can also add a click listener to navigate to details
+                txtVideoTitle.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        navigateToVideoDetails();
+                    }
+                });
+            }
+
+            MediaItem mediaItem = new MediaItem.Builder()
+                    .setUri(videoUrl)
+                    .setMediaMetadata(
+                            new androidx.media3.common.MediaMetadata.Builder()
+                                    .setTitle(title)
+                                    .setArtist(currentPlayingContent != null ? currentPlayingContent.getVideoType() : "Video")
+                                    .setDescription("Tap to view full details")
+                                    .build()
+                    )
+                    .build();
+
+            exoPlayer.setMediaItem(mediaItem);
+            exoPlayer.prepare();
+            exoPlayer.setPlayWhenReady(true);
+            lytSlider.setVisibility(View.VISIBLE);
+
+            Log.d("HomeFragment", "Video prepared and playing");
+        } catch (Exception e) {
+            Log.e("HomeFragment", "Error playing video: " + e.getMessage());
+            loadRandomMovieTrailer(); // Try another video
+        }
+    }
+
+    private void navigateToVideoDetails() {
+        if (currentPlayingContent == null) return;
+
+        Class<?> aClass;
+        Intent intent = new Intent();
+        switch (currentPlayingContent.getVideoType()) {
+            case "Movie":
+            default:
+                aClass = MovieDetailsActivity.class;
+                break;
+            case "Shows":
+            case "Series":
+                aClass = ShowDetailsActivity.class;
+                break;
+            case "Sports":
+                aClass = SportDetailsActivity.class;
+                break;
+            case "LiveTV":
+            case "TVSeries":
+                aClass = TVDetailsActivity.class;
+                break;
+        }
+        intent.setClass(getActivity(), aClass);
+        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        intent.putExtra("Id", currentPlayingContent.getVideoId());
+        startActivity(intent);
     }
 
     @Override
